@@ -1,3 +1,3 @@
-# CSA Coursework: Game of Life skeleton (Go)
+# CSA Coursework: Game of Life 
 
-All documentation is available [here](https://uob-csa.github.io/gol-docs/)
+Contributors: Roger D'Souza, Rahul Rajani
