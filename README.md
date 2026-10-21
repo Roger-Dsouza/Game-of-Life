@@ -1,2 +1,3 @@
-# Game-of-Life
-The repository for second year Game Of Life project. Between Roger D'Souza and Rahul Rajani.
+# CSA Coursework: Game of Life skeleton (Go)
+
+All documentation is available [here](https://uob-csa.github.io/gol-docs/)
