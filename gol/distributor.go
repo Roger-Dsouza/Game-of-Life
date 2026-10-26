@@ -1,5 +1,6 @@
 package gol
 
+//Creates the distributor channel struct.
 type distributorChannels struct {
 	events     chan<- Event
 	ioCommand  chan<- ioCommand
@@ -13,11 +14,20 @@ type distributorChannels struct {
 func distributor(p Params, c distributorChannels) {
 
 	// TODO: Create a 2D slice to store the world.
+    nworld := make([][]byte, p.ImageHeight)
+	for i := range nworld {
+		nworld[i] = make([]byte, p.ImageWidth)
+	}
+
 
 	turn := 0
 	c.events <- StateChange{turn, Executing}
 
 	// TODO: Execute all turns of the Game of Life.
+	for  i:=turn;i<p.Turns;i++{
+		nworld=calculateNextState(p,nworld)
+
+	}
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 
