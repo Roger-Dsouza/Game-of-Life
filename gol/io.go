@@ -98,6 +98,8 @@ func (io *ioState) readPgmImage() {
 
 	if fields[0] != "P5" {
 		panic(fmt.Sprintf("[IO] %v %v is not a pgm file", util.Red("ERROR"), filename))
+	}else{
+		fmt.Println("Success.")
 	}
 
 	width, _ := strconv.Atoi(fields[1])
@@ -116,6 +118,7 @@ func (io *ioState) readPgmImage() {
 	}
 
 	image := []byte(fields[4])
+
 
 	for _, b := range image {
 		io.channels.input <- b

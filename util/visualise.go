@@ -90,9 +90,10 @@ func squaresToStrings(given, expected [][]uint8, width, height int) []string {
 		if expected != nil {
 			output = append(output, fmt.Sprintf("│   %2d│", i))
 			for j := 0; j < width; j++ {
-				if expected[i][j] == 0xFF {
+				switch expected[i][j] {
+                case 0xFF:
 					output = append(output, "██")
-				} else if expected[i][j] == 0x00 {
+				case 0x00:
 					output = append(output, "  ")
 				}
 			}
