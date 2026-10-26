@@ -1,5 +1,7 @@
 package gol
 
+import "uk.ac.bris.cs/gameoflife/util"
+
 //Flag 0 for width, 1 for height.
 func isBound(lo int, hi int, val int,maxVal int) int {
 	if (val >= lo && val <=hi){
@@ -90,17 +92,16 @@ func calculateNextState(p Params, world [][]byte) [][]byte {
 	return nworld
 }
 
-/*
 
-func calculateAliveCells(p Params, world [][]byte) [][]byte {
-	var active [][]byte
+func calculateAliveCells(p Params, world [][]byte) []util.Cell {
+	var active []util.Cell
 	var width int = p.ImageWidth
 	var height int = p.ImageHeight
 
 	for h := 0; h < height; h++ {
 		for w := 0; w < width; w++ {
 			if world[h][w] == 255 {
-				c := world[h]
+				c := util.Cell{Y: h, X: w}
 				active = append(active, c)
 
 			}
@@ -111,4 +112,3 @@ func calculateAliveCells(p Params, world [][]byte) [][]byte {
 	return active
 }
 
-*/
