@@ -15,9 +15,9 @@ func Run(p Params, events chan<- Event, keyPresses <-chan rune) {
 
 	ioCommand := make(chan ioCommand)
 	ioIdle := make(chan bool)
-	iFile:=make(<-chan string)
-	iIn:=make(chan<- uint8)
-	iOut:=make(<-chan uint8)
+	iFile:=make(chan string)
+	iIn:=make(chan uint8)
+	iOut:=make(chan uint8)
 
 	ioChannels := ioChannels{
 		command:  ioCommand,
@@ -28,18 +28,15 @@ func Run(p Params, events chan<- Event, keyPresses <-chan rune) {
 	}
 	go startIo(p, ioChannels)
 
-
-	dFile:=make(chan<- string)
-	dIn:=make(<-chan uint8)
-	dOut:=make(chan<- uint8)
+    //Same channel so that the communication from ditributor goes to IO.
 
 	distributorChannels := distributorChannels{
 		events:     events,
 		ioCommand:  ioCommand,
 		ioIdle:     ioIdle,
-		ioFilename: dFile,
-		ioOutput:   dOut,
-		ioInput:    dIn,
+		ioFilename: iFile,
+		ioOutput:   iOut,
+		ioInput:    iIn,
 	}
 	distributor(p, distributorChannels)
 }

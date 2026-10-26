@@ -23,6 +23,8 @@ func distributor(p Params, c distributorChannels) {
 	turn := 0
 	c.events <- StateChange{turn, Executing}
 
+	c.ioCommand<-ioInput
+
 	// TODO: Execute all turns of the Game of Life.
 	for  i:=turn;i<p.Turns;i++{
 		nworld=calculateNextState(p,nworld)
