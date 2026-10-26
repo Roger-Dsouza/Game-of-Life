@@ -10,7 +10,7 @@ func isBound(lo int, hi int, val int,maxVal int) int {
 		return (maxVal-1)
 		
 	}else{
-		return val%maxVal
+		return maxVal-val
 	}
 
 }
