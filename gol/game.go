@@ -16,6 +16,7 @@ func isBound(lo int, hi int, val int,maxVal int) int {
 }
 
 
+
 func checkCell(world [][]byte,h int,w int) int{
 	if (h!=-1 && w!=-1){
 		if (world[h][w]==255){
@@ -33,7 +34,7 @@ func checkCell(world [][]byte,h int,w int) int{
 }
 
 
-func calculateNextState(p Params, world [][]byte) [][]byte {
+func calculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int) {
 	
 	var width int = p.ImageWidth
 	var height int = p.ImageHeight
@@ -62,24 +63,23 @@ func calculateNextState(p Params, world [][]byte) [][]byte {
 			switch val {
             case 0:
 				if activeCells == 3 {
-					nworld[h][w] = 255
+					dst[h][w] = 255
 				}else{
-					nworld[h][w] = 0
+					dst[h][w] = 0
 				}
 
 			case 255:
 				if activeCells < 2 || activeCells > 3 {
-					nworld[h][w] = 0
+					dst[h][w] = 0
 
 				}else{
-					nworld[h][w]=255
+					dst[h][w]=255
 				}
 			}
 
 		}
 
 	}
-	return nworld
 }
 
 

@@ -26,23 +26,26 @@ type rowTask struct {
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p Params, c distributorChannels) {
+	//Creates two worlds for double buffering and calls them current and next world respectively.
     worldA := make([][]byte, p.ImageHeight)
+	worldB := make([][]byte, p.ImageHeight)
+
     for i:= range worldA {
         worldA[i] = make([]byte,p.ImageWidth)
     }
     for i:= range worldB {
         worldB[i] = make([]byte,p.ImageWidth)
     }
-// Allocate two worlds for double buffering
+
     currentWorld := worldA
     nextWorld := worldB
 
+    //Initialising.
 	turn := 0
 	c.events <- StateChange{turn, Executing}
-
 	c.ioCommand<-ioInput
 	
-	//Figured out how to read a file.
+	//Figured out how to read a file and this puts it into the current world.
 	c.ioFilename<-fmt.Sprintf("%vx%v",p.ImageHeight,p.ImageWidth)
 
 	for i:=0;i<p.ImageHeight;i++{
@@ -54,25 +57,26 @@ func distributor(p Params, c distributorChannels) {
 		}
 	}
 
+    //Infra needed for rowTask.
 	tasks := make(chan rowTask, p.Threads)
 	var poolWg sync.WaitGroup
 
 	for i := 0; i < p.Threads; i++ {
 	    poolWg.Add(1)
-	    go func() {
+	    go func(){
 	        defer poolWg.Done()
 	        for task := range tasks {
-	            calculateRows(p, task.src, task,dst, task.startRow, task.endRow)
+	            calculateRows(p, task.src, task.dst, task.startRow, task.endRow)
 	            task.wg.Done()
 	        }
-	    }
+	    }()
 	}
 
 	rowsPerThread := p.ImageHeight / p.Threads
 
 	for i := turn; i < p.Turns; i++ {
 	    var turnWg sync.WaitGroup
-	    turnWg.Add(p.turns)
+	    turnWg.Add(p.Turns)
 
 	    for t := 0; t < p.Threads; t++ {
 	        start := t * rowsPerThread
@@ -100,7 +104,7 @@ func distributor(p Params, c distributorChannels) {
 	close(tasks)
 	poolWg.Wait()
 	// TODO: Report the final state using FinalTurnCompleteEvent.
-	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,nworld)}
+	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
 
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
