@@ -38,21 +38,11 @@ func calculateNextState(p Params, world [][]byte) [][]byte {
 	var width int = p.ImageWidth
 	var height int = p.ImageHeight
 
+    for h := startRow; h < endRow; h++ {
+        for w:= 0; w < width; w++ {
+            var activeCells int = 0
+            var val byte = world[h][w]
 
-	nworld := make([][]byte, p.ImageHeight)
-	for i := range nworld {
-		nworld[i] = make([]byte, p.ImageWidth)
-	}
-
-
-
-
-	for h := 0; h < height; h++ {
-		for w := 0; w < width; w++ {
-			var activeCells int = 0
-			var val byte = world[h][w]
-
-			//Number of active cells near this cell.
 
 			var low int = isBound(0, width-1, w-1,width)
 			var loh int = isBound(0, height-1, h-1,height)
