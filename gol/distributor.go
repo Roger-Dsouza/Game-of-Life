@@ -3,6 +3,7 @@ package gol
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 //Creates the distributor channel struct.
@@ -44,6 +45,9 @@ func distributor(p Params, c distributorChannels) {
 	turn := 0
 	c.events <- StateChange{turn, Executing}
 	c.ioCommand<-ioInput
+
+
+	
 	
 	//Figured out how to read a file and this puts it into the current world.
 	c.ioFilename<-fmt.Sprintf("%vx%v",p.ImageHeight,p.ImageWidth)
@@ -74,8 +78,20 @@ func distributor(p Params, c distributorChannels) {
 	}
 
 	rowsPerThread := p.ImageHeight / p.Threads
+	i:=0
 
-	for i := turn; i < p.Turns; i++ {
+	go func(p Params,world [][]byte){
+		for{
+			time.Sleep(2*time.Second)
+			c.events<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
+			
+			
+		}
+
+	}(p,nextWorld)
+
+
+	for i < p.Turns {
 	    var turnWg sync.WaitGroup
 	    turnWg.Add((p.Threads))
 
@@ -98,8 +114,9 @@ func distributor(p Params, c distributorChannels) {
 	    turnWg.Wait()
 
 	    currentWorld, nextWorld = nextWorld, currentWorld
+		i++
 
-	    c.events <- StateChange{i, Executing}
+
 	}
 
 	close(tasks)
@@ -112,6 +129,7 @@ func distributor(p Params, c distributorChannels) {
 	<-c.ioIdle
 
 	c.events <- StateChange{turn, Quitting}
+	fmt.Println("Terminated.")
     
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)

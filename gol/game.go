@@ -102,3 +102,22 @@ func calculateAliveCells(p Params, world [][]byte) []util.Cell {
 	return active
 }
 
+
+func aliveCellCount(p Params, world [][]byte) int {
+	total:=0
+	var width int = p.ImageWidth
+	var height int = p.ImageHeight
+
+	for h := 0; h < height; h++ {
+		for w := 0; w < width; w++ {
+			if world[h][w] == 255 {
+				total++;
+
+			}
+
+		}
+
+	}
+	return total
+}
+
