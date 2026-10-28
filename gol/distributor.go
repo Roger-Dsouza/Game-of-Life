@@ -80,8 +80,10 @@ func distributor(p Params, c distributorChannels) {
 	rowsPerThread := p.ImageHeight / p.Threads
 	i:=0
 
+
 	go func(p Params,world [][]byte){
 		for{
+			
 			time.Sleep(2*time.Second)
 			c.events<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
 			
@@ -121,16 +123,29 @@ func distributor(p Params, c distributorChannels) {
 
 	close(tasks)
 	poolWg.Wait()
+	//Output saving.
+	c.ioCommand<-ioOutput
+	c.ioFilename<-fmt.Sprintf("%vx%vx%v",p.ImageHeight,p.ImageWidth,p.Turns)
+
+	for i:=0;i<p.ImageHeight;i++{
+		for j:=0;j<p.ImageWidth;j++{
+			c.ioOutput<-currentWorld[i][j]
+
+		}
+	}
+    
+
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
 
 	// Make sure that the Io has finished any output before exiting.
+
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
 
 	c.events <- StateChange{turn, Quitting}
-	fmt.Println("Terminated.")
     
+	
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)
 }
