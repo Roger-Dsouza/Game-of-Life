@@ -77,7 +77,7 @@ func distributor(p Params, c distributorChannels) {
 
 	for i := turn; i < p.Turns; i++ {
 	    var turnWg sync.WaitGroup
-	    turnWg.Add((p.Turns*p.Threads)-1)
+	    turnWg.Add((p.Threads))
 
 	    for t := 0; t < p.Threads; t++ {
 	        start := t * rowsPerThread
