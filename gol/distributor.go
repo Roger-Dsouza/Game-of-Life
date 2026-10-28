@@ -64,11 +64,12 @@ func distributor(p Params, c distributorChannels) {
 	for i := 0; i < p.Threads; i++ {
 	    poolWg.Add(1)
 	    go func(){
-	        defer poolWg.Done()
+	        
 	        for task := range tasks {
 	            calculateRows(p, task.src, task.dst, task.startRow, task.endRow)
 	            task.wg.Done()
 	        }
+			poolWg.Done()
 	    }()
 	}
 
@@ -76,7 +77,7 @@ func distributor(p Params, c distributorChannels) {
 
 	for i := turn; i < p.Turns; i++ {
 	    var turnWg sync.WaitGroup
-	    turnWg.Add(p.Turns)
+	    turnWg.Add((p.Turns*p.Threads)-1)
 
 	    for t := 0; t < p.Threads; t++ {
 	        start := t * rowsPerThread
