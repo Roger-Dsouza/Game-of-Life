@@ -81,22 +81,31 @@ func distributor(p Params, c distributorChannels) {
 	i:=0
 
     control:=make (chan int)
-	go func(p Params,world [][]byte,control chan int){
-        toStop:=0
+    traffic:=make (chan Event)
 
-		for toStop==0{
+	//Router function
+	go func(control chan int,traffic chan Event){
+		stop:=0
 
+		for stop==0{
 			select{
-			case a:=<-control:
-				toStop=a
-			default:
-				time.Sleep(2*time.Second)
-				c.events<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
-
+				case a:=<-control:
+					stop=a
+				case a:=<-traffic:
+					c.events<-a
+					
+			
 			}
 
-			
 		}
+
+
+	}(control,traffic)
+
+
+	go func(p Params,world [][]byte,control chan int){
+		time.Sleep(2*time.Second)
+		traffic<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
 
 	}(p,nextWorld,control)
 
