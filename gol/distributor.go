@@ -26,7 +26,7 @@ type rowTask struct {
 
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels) {
+func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	//Creates two worlds for double buffering and calls them current and next world respectively.
     worldA := make([][]byte, p.ImageHeight)
 	worldB := make([][]byte, p.ImageHeight)
@@ -68,7 +68,6 @@ func distributor(p Params, c distributorChannels) {
 	for i := 0; i < p.Threads; i++ {
 	    poolWg.Add(1)
 	    go func(){
-	        
 	        for task := range tasks {
 	            calculateRows(p, task.src, task.dst, task.startRow, task.endRow)
 	            task.wg.Done()
@@ -76,6 +75,7 @@ func distributor(p Params, c distributorChannels) {
 			poolWg.Done()
 	    }()
 	}
+	
 
 	rowsPerThread := p.ImageHeight / p.Threads
 	i:=0
@@ -113,6 +113,8 @@ func distributor(p Params, c distributorChannels) {
 
 		}
 	}(p,nextWorld,control)
+
+
 	paused := false
 	quitRequested := false
 
@@ -126,12 +128,12 @@ func distributor(p Params, c distributorChannels) {
                 }
             }
             c.events <- ImageOutputComplete{CompletedTurns: currentTurn}
-        }
+    }
 
 
 
-
-
+    
+    fmt.Println("in")
 	for i < p.Turns {
         for i < p.Turns && !quitRequested {
                 select {
@@ -150,7 +152,7 @@ func distributor(p Params, c distributorChannels) {
                         quitRequested = true
                     }
                 default:
-                    if !paused {
+                    if paused==false {
                       var turnWg sync.WaitGroup
                         turnWg.Add((p.Threads))
 
@@ -174,22 +176,18 @@ func distributor(p Params, c distributorChannels) {
 
                         currentWorld, nextWorld = nextWorld, currentWorld
                         i++
+			        }
+				}
+			}
 	}
-
+	fmt.Println("Hold-up.")
     close(tasks)
-        poolWg.Wait()
-        c.events <- FinalTurnComplete{CompletedTurns: i, Alive: calculateAliveCells(p, currentWorld)}
-        saveImage(i)
-        c.ioCommand <- ioCheckIdle
-        <-c.ioIdle
-        c.events <- StateChange{i, Quitting}
-        fmt.Println("Check: Pre-block.")
-        control <- 1
-        fmt.Println("Check: Post-block.")
-        close(c.events)
-    }
+    fmt.Println("Out")
+    
 
+    
 
+    fmt.Println("Not supposed to be here.")
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
 
@@ -206,4 +204,8 @@ func distributor(p Params, c distributorChannels) {
 	control<-1
 	fmt.Println("Post-block.")
 	
+
 }
+		     
+		
+
