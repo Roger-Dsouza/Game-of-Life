@@ -111,52 +111,83 @@ func distributor(p Params, c distributorChannels) {
 			
 
 		}
-
-
 	}(p,nextWorld,control)
+	paused := false
+	quitRequested := false
+
+	//helper function for saving images
+	saveImage := func(currentTurn int) {
+	    c.ioCommand <- ioOutput
+	    c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageHeight, p.ImageWidth, currentTurn)
+        for r := 0; r < p.ImageHeight; r++ {
+            for col := 0; col < p.ImageWidth; col++ {
+                c.ioOutput <- currentWorld[r][col]
+                }
+            }
+            c.events <- ImageOutputComplete{CompletedTurns: currentTurn}
+        }
+
+
+
 
 
 	for i < p.Turns {
-	    var turnWg sync.WaitGroup
-	    turnWg.Add((p.Threads))
+        for i < p.Turns && !quitRequested {
+                select {
+                case key := <-keyPresses:
+                    switch key {
+                    case 'p', 'P':
+                        paused = !paused
+                        if paused {
+                            c.events <- StateChange{i, Paused}
+                        } else {
+                            c.events <- StateChange{i, Executing}
+                        }
+                    case 's', 'S':
+                        saveImage(i)
+                    case 'q', 'Q':
+                        quitRequested = true
+                    }
+                default:
+                    if !paused {
+                      var turnWg sync.WaitGroup
+                        turnWg.Add((p.Threads))
 
-	    for t := 0; t < p.Threads; t++ {
-	        start := t * rowsPerThread
-	        end := start + rowsPerThread
-	        if t == p.Threads - 1 {
-	            end = p.ImageHeight
-	        }
+                        for t := 0; t < p.Threads; t++ {
+                            start := t * rowsPerThread
+                            end := start + rowsPerThread
+                            if t == p.Threads - 1 {
+                                end = p.ImageHeight
+                            }
 
-	        tasks <- rowTask{
-	            startRow: start,
-	            endRow: end,
-	            src: currentWorld,
-	            dst: nextWorld,
-	            wg: &turnWg,
-	        }
-	    }
+                            tasks <- rowTask{
+                                startRow: start,
+                                endRow: end,
+                                src: currentWorld,
+                                dst: nextWorld,
+                                wg: &turnWg,
+                            }
+                        }
 
-	    turnWg.Wait()
+                        turnWg.Wait()
 
-	    currentWorld, nextWorld = nextWorld, currentWorld
-		i++
-
-
+                        currentWorld, nextWorld = nextWorld, currentWorld
+                        i++
 	}
 
-	close(tasks)
-	poolWg.Wait()
-	//Output saving.
-	c.ioCommand<-ioOutput
-	c.ioFilename<-fmt.Sprintf("%vx%vx%v",p.ImageHeight,p.ImageWidth,p.Turns)
+    close(tasks)
+        poolWg.Wait()
+        c.events <- FinalTurnComplete{CompletedTurns: i, Alive: calculateAliveCells(p, currentWorld)}
+        saveImage(i)
+        c.ioCommand <- ioCheckIdle
+        <-c.ioIdle
+        c.events <- StateChange{i, Quitting}
+        fmt.Println("Check: Pre-block.")
+        control <- 1
+        fmt.Println("Check: Post-block.")
+        close(c.events)
+    }
 
-	for i:=0;i<p.ImageHeight;i++{
-		for j:=0;j<p.ImageWidth;j++{
-			c.ioOutput<-currentWorld[i][j]
-
-		}
-	}
-    
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
