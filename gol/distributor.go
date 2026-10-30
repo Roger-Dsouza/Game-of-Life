@@ -92,6 +92,7 @@ func distributor(p Params, c distributorChannels) {
 				case a:=<-control:
 					fmt.Println("Stopped.")
 					stop=a
+					close(c.events)
 				case a:=<-traffic:
 					c.events<-a
 					
@@ -173,5 +174,5 @@ func distributor(p Params, c distributorChannels) {
 	fmt.Println("Pre-block.")
 	control<-1
 	fmt.Println("Post-block.")
-	close(c.events)
+	
 }
