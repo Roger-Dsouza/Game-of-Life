@@ -80,17 +80,25 @@ func distributor(p Params, c distributorChannels) {
 	rowsPerThread := p.ImageHeight / p.Threads
 	i:=0
 
+    control:=make (chan int)
+	go func(p Params,world [][]byte,control chan int){
+        toStop:=0
 
-	go func(p Params,world [][]byte){
-		for{
-			
-			time.Sleep(2*time.Second)
-			c.events<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
-			
+		for toStop==0{
+
+			select{
+			case a:=<-control:
+				toStop=a
+			default:
+				time.Sleep(2*time.Second)
+				c.events<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
+
+			}
+
 			
 		}
 
-	}(p,nextWorld)
+	}(p,nextWorld,control)
 
 
 	for i < p.Turns {
@@ -147,5 +155,6 @@ func distributor(p Params, c distributorChannels) {
     
 	
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
+	control<-1
 	close(c.events)
 }
