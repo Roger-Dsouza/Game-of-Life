@@ -90,6 +90,7 @@ func distributor(p Params, c distributorChannels) {
 		for stop==0{
 			select{
 				case a:=<-control:
+					fmt.Println("Stopped.")
 					stop=a
 				case a:=<-traffic:
 					c.events<-a
@@ -104,8 +105,13 @@ func distributor(p Params, c distributorChannels) {
 
 
 	go func(p Params,world [][]byte,control chan int){
-		time.Sleep(2*time.Second)
-		traffic<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
+		for {
+			time.Sleep(2*time.Second)
+			traffic<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
+			
+
+		}
+
 
 	}(p,nextWorld,control)
 
@@ -164,6 +170,8 @@ func distributor(p Params, c distributorChannels) {
     
 	
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
+	fmt.Println("Pre-block.")
 	control<-1
+	fmt.Println("Post-block.")
 	close(c.events)
 }
