@@ -26,7 +26,7 @@ type rowTask struct {
 
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
+func distributor(p Params, c distributorChannels) {
 	//Creates two worlds for double buffering and calls them current and next world respectively.
     worldA := make([][]byte, p.ImageHeight)
 	worldB := make([][]byte, p.ImageHeight)
@@ -92,6 +92,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				case a:=<-control:
 					fmt.Println("Stopped.")
 					stop=a
+					close(c.events)
 				case a:=<-traffic:
 					c.events<-a
 					
@@ -111,76 +112,52 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 			
 
 		}
+
+
 	}(p,nextWorld,control)
-	paused := false
-	quitRequested := false
-
-	//helper function for saving images
-	saveImage := func(currentTurn int) {
-	    c.ioCommand <- ioOutput
-	    c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageHeight, p.ImageWidth, currentTurn)
-        for r := 0; r < p.ImageHeight; r++ {
-            for col := 0; col < p.ImageWidth; col++ {
-                c.ioOutput <- currentWorld[r][col]
-                }
-            }
-            c.events <- ImageOutputComplete{CompletedTurns: currentTurn}
-        }
 
 
+	for i < p.Turns {
+	    var turnWg sync.WaitGroup
+	    turnWg.Add((p.Threads))
+
+	    for t := 0; t < p.Threads; t++ {
+	        start := t * rowsPerThread
+	        end := start + rowsPerThread
+	        if t == p.Threads - 1 {
+	            end = p.ImageHeight
+	        }
+
+	        tasks <- rowTask{
+	            startRow: start,
+	            endRow: end,
+	            src: currentWorld,
+	            dst: nextWorld,
+	            wg: &turnWg,
+	        }
+	    }
+
+	    turnWg.Wait()
+
+	    currentWorld, nextWorld = nextWorld, currentWorld
+		i++
 
 
-    for i < p.Turns && !quitRequested {
-            select {
-                case key := <-keyPresses:
-                    switch key {
-                    case 'p', 'P':
-                        paused = !paused
-                        if paused {
-                            c.events <- StateChange{i, Paused}
-                        } else {
-                            c.events <- StateChange{i, Executing}
-                        }
-                    case 's', 'S':
-                        saveImage(i)
-                    case 'q', 'Q':
-                        quitRequested = true
-                    }
-                default:
-                    if !paused {
-                      var turnWg sync.WaitGroup
-                        turnWg.Add((p.Threads))
+	}
 
-                        for t := 0; t < p.Threads; t++ {
-                            start := t * rowsPerThread
-                            end := start + rowsPerThread
-                            if t == p.Threads - 1 {
-                                end = p.ImageHeight
-                            }
-
-                            tasks <- rowTask{
-                                startRow: start,
-                                endRow: end,
-                                src: currentWorld,
-                                dst: nextWorld,
-                                wg: &turnWg,
-                            }
-                        }
-
-                        turnWg.Wait()
-
-                        currentWorld, nextWorld = nextWorld, currentWorld
-                        i++
-	                }
-			}
-			fmt.Println("Done turn",i)
-
-       
-        
-    }
-	poolWg.Wait()
 	close(tasks)
-    saveImage(i)
+	poolWg.Wait()
+	//Output saving.
+	c.ioCommand<-ioOutput
+	c.ioFilename<-fmt.Sprintf("%vx%vx%v",p.ImageHeight,p.ImageWidth,p.Turns)
+
+	for i:=0;i<p.ImageHeight;i++{
+		for j:=0;j<p.ImageWidth;j++{
+			c.ioOutput<-currentWorld[i][j]
+
+		}
+	}
+    
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
@@ -194,6 +171,8 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
     
 	
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
+	fmt.Println("Pre-block.")
 	control<-1
-	close(c.events)
+	fmt.Println("Post-block.")
+	
 }
