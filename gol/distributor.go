@@ -26,7 +26,7 @@ type rowTask struct {
 
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels) {
+func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	//Creates two worlds for double buffering and calls them current and next world respectively.
     worldA := make([][]byte, p.ImageHeight)
 	worldB := make([][]byte, p.ImageHeight)
@@ -130,10 +130,8 @@ func distributor(p Params, c distributorChannels) {
 
 
 
-
-	for i < p.Turns {
-        for i < p.Turns && !quitRequested {
-                select {
+    for i < p.Turns && !quitRequested {
+            select {
                 case key := <-keyPresses:
                     switch key {
                     case 'p', 'P':
@@ -173,21 +171,16 @@ func distributor(p Params, c distributorChannels) {
 
                         currentWorld, nextWorld = nextWorld, currentWorld
                         i++
-	}
+	                }
+			}
+			fmt.Println("Done turn",i)
 
-    close(tasks)
-        poolWg.Wait()
-        c.events <- FinalTurnComplete{CompletedTurns: i, Alive: calculateAliveCells(p, currentWorld)}
-        saveImage(i)
-        c.ioCommand <- ioCheckIdle
-        <-c.ioIdle
-        c.events <- StateChange{i, Quitting}
-        fmt.Println("Check: Pre-block.")
-        control <- 1
-        fmt.Println("Check: Post-block.")
-        close(c.events)
+       
+        
     }
-
+	poolWg.Wait()
+	close(tasks)
+    saveImage(i)
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
@@ -201,8 +194,6 @@ func distributor(p Params, c distributorChannels) {
     
 	
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
-	fmt.Println("Pre-block.")
 	control<-1
-	fmt.Println("Post-block.")
 	close(c.events)
 }
