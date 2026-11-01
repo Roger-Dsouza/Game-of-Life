@@ -203,6 +203,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				quitRequested=true
 			}
 			i++
+			c.events<-TurnComplete{CompletedTurns: i}
 		}
 	}
 	close(tasks)
