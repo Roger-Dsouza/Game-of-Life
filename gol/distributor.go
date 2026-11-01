@@ -171,9 +171,8 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
                 } 
 			case 's','S':
 				saveImage(i)
-				i-=1
+
 			case 'q','Q':
-				i-=1
 				quit=true
 			}
         default:
@@ -206,34 +205,39 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 			i++
 		}
 	}
+	close(tasks)
+	poolWg.Wait()
 
 	if (quitRequested){
 		c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
 		saveImage(i)
+		c.ioCommand <- ioCheckIdle
+		<-c.ioIdle
+		c.events <- StateChange{turn, Quitting}
+		control<-1
 		
 
 
-	}
+	}else{
+			//Output saving.
+		saveImage(p.Turns)
+		// TODO: Report the final state using FinalTurnCompleteEvent.
+		c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
 
-	close(tasks)
-	poolWg.Wait()
-	//Output saving.
-	saveImage(p.Turns)
-    
+		// Make sure that the Io has finished any output before exiting.
 
-	// TODO: Report the final state using FinalTurnCompleteEvent.
-	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
-
-	// Make sure that the Io has finished any output before exiting.
-
-	c.ioCommand <- ioCheckIdle
-	<-c.ioIdle
-
-	c.events <- StateChange{turn, Quitting}
+		c.ioCommand <- ioCheckIdle
+		<-c.ioIdle
+		c.events <- StateChange{turn, Quitting}
     
 	
-	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
-	control<-1
+		// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
+		control<-1
+
+	}
+
+
+
 
 	
 }
