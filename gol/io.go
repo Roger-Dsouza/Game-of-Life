@@ -46,6 +46,7 @@ func (io *ioState) writePgmImage() {
 
 	// Request a filename from the distributor.
 	filename := <-io.channels.filename
+	fmt.Println("File name:",filename)
 
 	file, ioError := os.Create("out/" + filename + ".pgm")
 	util.Check(ioError)
@@ -82,6 +83,7 @@ func (io *ioState) writePgmImage() {
 	ioError = file.Sync()
 	util.Check(ioError)
 
+	fmt.Printf("[IO] File %v.pgm output done", filename)
 	log.Printf("[IO] File %v.pgm output done", filename)
 }
 

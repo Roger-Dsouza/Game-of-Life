@@ -26,7 +26,7 @@ type rowTask struct {
 
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels) {
+func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	//Creates two worlds for double buffering and calls them current and next world respectively.
     worldA := make([][]byte, p.ImageHeight)
 	worldB := make([][]byte, p.ImageHeight)
@@ -65,17 +65,36 @@ func distributor(p Params, c distributorChannels) {
 	tasks := make(chan rowTask, p.Threads)
 	var poolWg sync.WaitGroup
 
-	for i := 0; i < p.Threads; i++ {
-	    poolWg.Add(1)
-	    go func(){
+
+    //Helper function to save images.
+	saveImage := func(currentTurn int) {
+		hold:=currentWorld
+	    c.ioCommand <- ioOutput
+	    c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)
+        for r := 0; r < p.ImageHeight; r++ {
+            for col := 0; col < p.ImageWidth; col++ {
+                c.ioOutput <- hold[r][col]
+            }
+        }
+		c.ioCommand <- ioCheckIdle
+		<-c.ioIdle
+        c.events <- ImageOutputComplete{CompletedTurns: currentTurn,Filename: fmt.Sprintf("%vx%vx%v",p.ImageWidth,p.ImageHeight,currentTurn)}
+    }
+
+
+	//Control for the pausing, quitting and saving.
+
+
+	poolWg.Add(1)
+	go func(){
 	        
 	        for task := range tasks {
 	            calculateRows(p, task.src, task.dst, task.startRow, task.endRow)
 	            task.wg.Done()
 	        }
 			poolWg.Done()
-	    }()
-	}
+	}()
+	
 
 	rowsPerThread := p.ImageHeight / p.Threads
 	i:=0
@@ -105,6 +124,7 @@ func distributor(p Params, c distributorChannels) {
 	}(control,traffic)
 
 
+	//Heartbeat function.
 	go func(p Params,world [][]byte,control chan int){
 		for {
 			time.Sleep(2*time.Second)
@@ -117,30 +137,80 @@ func distributor(p Params, c distributorChannels) {
 	}(p,nextWorld,control)
 
 
-	for i < p.Turns {
-	    var turnWg sync.WaitGroup
-	    turnWg.Add((p.Threads))
+	paused := false
+	quitRequested := false
+	quit:=false
 
-	    for t := 0; t < p.Threads; t++ {
-	        start := t * rowsPerThread
-	        end := start + rowsPerThread
-	        if t == p.Threads - 1 {
-	            end = p.ImageHeight
-	        }
+	for i < p.Turns  && !quitRequested{
+		
+		select{
+		case key:=<-keyPresses:
+			switch key{
+			case 'p','P':
+				paused=!paused
+                if paused {
+                    c.events <- StateChange{i, Paused}
+					for paused{
+						select{
+						case k:=<-keyPresses:
+							switch k{
+							case 'p','P':
+								paused=!paused
+								c.events <- StateChange{i, Executing}
 
-	        tasks <- rowTask{
-	            startRow: start,
-	            endRow: end,
-	            src: currentWorld,
-	            dst: nextWorld,
-	            wg: &turnWg,
-	        }
-	    }
+							case 's','S':
+								saveImage(i)
+							case 'q','Q':
+								quit=true
+								paused=false
+							}
+							
 
-	    turnWg.Wait()
+						}
+					}
+                } 
+			case 's','S':
+				saveImage(i)
+				i-=1
+			case 'q','Q':
+				i-=1
+				quit=true
+			}
+        default:
+			var turnWg sync.WaitGroup
+	    	turnWg.Add((p.Threads))
 
-	    currentWorld, nextWorld = nextWorld, currentWorld
-		i++
+	    	for t := 0; t < p.Threads; t++ {
+	        	start := t * rowsPerThread
+	        	end := start + rowsPerThread
+	        	if t == p.Threads - 1 {
+	            	end = p.ImageHeight
+	        	}
+
+	        	tasks <- rowTask{
+	            	startRow: start,
+	            	endRow: end,
+	            	src: currentWorld,
+	            	dst: nextWorld,
+	            	wg: &turnWg,
+	        	}
+	    	}
+
+	    	turnWg.Wait()
+	    	currentWorld, nextWorld = nextWorld, currentWorld
+			
+
+			if (quit){
+				quitRequested=true
+			}
+			i++
+		}
+	}
+
+	if (quitRequested){
+		c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
+		saveImage(i)
+		
 
 
 	}
@@ -148,15 +218,7 @@ func distributor(p Params, c distributorChannels) {
 	close(tasks)
 	poolWg.Wait()
 	//Output saving.
-	c.ioCommand<-ioOutput
-	c.ioFilename<-fmt.Sprintf("%vx%vx%v",p.ImageHeight,p.ImageWidth,p.Turns)
-
-	for i:=0;i<p.ImageHeight;i++{
-		for j:=0;j<p.ImageWidth;j++{
-			c.ioOutput<-currentWorld[i][j]
-
-		}
-	}
+	saveImage(p.Turns)
     
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
@@ -171,8 +233,7 @@ func distributor(p Params, c distributorChannels) {
     
 	
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
-	fmt.Println("Pre-block.")
 	control<-1
-	fmt.Println("Post-block.")
+
 	
 }
