@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+import "uk.ac.bris.cs/gameoflife/util"
+
 //Creates the distributor channel struct.
 type distributorChannels struct {
 	events     chan<- Event
@@ -43,7 +45,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 
     //Initialising.
 	turn := 0
-	c.events <- StateChange{turn, Executing}
+
 	c.ioCommand<-ioInput
 
 
@@ -56,11 +58,16 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 		for j:=0;j<p.ImageWidth;j++{
 			select{
 			case a:=<-c.ioInput:
+				if (a==255){
+					c.events<-CellFlipped{CompletedTurns:0,Cell:util.Cell{X:j,Y:i}}
+				}
+
 				currentWorld[i][j]=a
 			}
 		}
 	}
 
+	c.events <- StateChange{turn, Executing}
     //Infra needed for rowTask.
 	tasks := make(chan rowTask, p.Threads)
 	var poolWg sync.WaitGroup
@@ -84,12 +91,12 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 
 	//Control for the pausing, quitting and saving.
 
-
+    channel:=make (chan util.Cell)
 	poolWg.Add(1)
 	go func(){
 	        
 	        for task := range tasks {
-	            calculateRows(p, task.src, task.dst, task.startRow, task.endRow)
+	            calculateRows(p, task.src, task.dst, task.startRow, task.endRow,channel)
 	            task.wg.Done()
 	        }
 			poolWg.Done()
@@ -141,6 +148,24 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	quitRequested := false
 	quit:=false
 
+	turnUpdate:=make (chan int)
+	go func(turn chan int,cell chan util.Cell,event chan<- Event){
+		init:=0
+		for{
+			select{
+				case t:=<-turn:
+					init=t
+
+				case c:=<-cell:
+					event<-CellFlipped{CompletedTurns:init,Cell:c}
+			}
+		}
+
+
+
+	}(turnUpdate,channel,c.events)
+
+    
 	for i < p.Turns  && !quitRequested{
 		
 		select{
@@ -203,6 +228,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				quitRequested=true
 			}
 			i++
+			turnUpdate<-(i)
 			c.events<-TurnComplete{CompletedTurns: i}
 		}
 	}

@@ -34,7 +34,7 @@ func checkCell(world [][]byte,h int,w int) int{
 }
 
 
-func calculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int) {
+func calculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int,channel chan util.Cell) {
 	
 	var width int = p.ImageWidth
 	var height int = p.ImageHeight
@@ -64,6 +64,7 @@ func calculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int
             case 0:
 				if activeCells == 3 {
 					dst[h][w] = 255
+					channel<-util.Cell{X:w,Y:h}
 				}else{
 					dst[h][w] = 0
 				}
@@ -71,6 +72,7 @@ func calculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int
 			case 255:
 				if activeCells < 2 || activeCells > 3 {
 					dst[h][w] = 0
+					channel<-util.Cell{X:w,Y:h}
 
 				}else{
 					dst[h][w]=255
