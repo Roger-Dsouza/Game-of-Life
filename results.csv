@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+pkg: uk.ac.bris.cs/gameoflife/tests
+cpu: 12th Gen Intel(R) Core(TM) i7-1255U
+,results.out,
+,sec/op,CI
+Gol/1_workers-12,0.047197866000000005,16%
+Gol/2_workers-12,0.05982138050000001,5%
+Gol/4_workers-12,0.06366100400000001,13%
+Gol/8_workers-12,0.06909010700000001,25%
+Gol/16_workers-12,0.05969253000000001,13%
+geomean,0.059428890980864554,
