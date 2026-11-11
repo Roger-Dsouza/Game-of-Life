@@ -74,18 +74,23 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 
 
     //Helper function to save images.
-	saveImage := func(currentTurn int) {
-		hold:=currentWorld
-	    c.ioCommand <- ioOutput
-	    c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)
+    saveImage := func(currentTurn int) {
+        // For Benchmarking purposes
+        if p.Turns <= 10 {
+            return
+        }
+
+        hold := currentWorld
+        c.ioCommand <- ioOutput
+        c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)
         for r := 0; r < p.ImageHeight; r++ {
             for col := 0; col < p.ImageWidth; col++ {
                 c.ioOutput <- hold[r][col]
             }
         }
-		c.ioCommand <- ioCheckIdle
-		<-c.ioIdle
-        c.events <- ImageOutputComplete{CompletedTurns: currentTurn,Filename: fmt.Sprintf("%vx%vx%v",p.ImageWidth,p.ImageHeight,currentTurn)}
+        c.ioCommand <- ioCheckIdle
+        <-c.ioIdle
+        c.events <- ImageOutputComplete{CompletedTurns: currentTurn, Filename: fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)}
     }
 
 

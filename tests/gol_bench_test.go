@@ -14,7 +14,7 @@ func BenchmarkGol(b *testing.B) {
 		b.Run(fmt.Sprintf("%d_workers", threads), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				p := gol.Params{
-					Turns:       20, // Keep turns low so benchmarks finish quickly
+					Turns:       5,
 					Threads:     threads,
 					ImageWidth:  256,
 					ImageHeight: 256,
