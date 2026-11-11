@@ -8,6 +8,8 @@ import (
 
 import "uk.ac.bris.cs/gameoflife/util"
 
+
+
 //Creates the distributor channel struct.
 type distributorChannels struct {
 	events     chan<- Event

@@ -1,6 +1,11 @@
 package gol
 
-import "uk.ac.bris.cs/gameoflife/util"
+import (
+	"uk.ac.bris.cs/gameoflife/util"
+
+
+
+)
 
 //Flag 0 for width, 1 for height.
 func isBound(lo int, hi int, val int,maxVal int) int {
@@ -82,6 +87,7 @@ func calculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int
 		}
 
 	}
+	return
 }
 
 
@@ -122,4 +128,7 @@ func aliveCellCount(p Params, world [][]byte) int {
 	}
 	return total
 }
+
+
+
 
