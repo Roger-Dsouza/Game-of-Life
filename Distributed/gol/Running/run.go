@@ -88,7 +88,6 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 
 // Reports the current turn and alive cell count.
 func (l *CellCalc) AliveCount(req int, res *AliveRes) error {
-	fmt.Println("AliveCount called")
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	res.Turn = l.turn
