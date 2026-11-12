@@ -79,10 +79,7 @@ func (l *CellCalc) SingleCalc(c CompactType,r *CompactType) (err error){
 }
 
 //Diagnostic function.
-func (l *CellCalc) Ping(c CompactType,r *CompactType) (err error){
-	fmt.Println("Ping pong.")
-	return
-}
+
 
 
 func CalculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int)(err error) {
@@ -137,7 +134,10 @@ func CalculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int
 	return
 }
 
-
+func (l *CellCalc) Ping(c CompactType,r *CompactType) (err error){
+	fmt.Println("Ping pong.")
+	return
+}
 
 func calculateAliveCells(p Params, world [][]byte) []util.Cell {
 	var active []util.Cell

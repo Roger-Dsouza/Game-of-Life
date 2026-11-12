@@ -5,6 +5,7 @@ import (
 	"sync"
 	"net/rpc"
 	"flag"
+	"time"
 )
 
 import "uk.ac.bris.cs/gameoflife/util"
@@ -12,6 +13,8 @@ import "uk.ac.bris.cs/gameoflife/util"
 
 
 var worker=flag.String("Worker","localhost:8030","IP:Connect to worker.")
+var ping=flag.String("Board updater","localhost:8030","IP:Gets board updates.")
+
 
 //Creates the distributor channel struct.
 type distributorChannels struct {
@@ -124,6 +127,39 @@ func distributor(p Params, c distributorChannels) {
 
 	response:=new(CompactType)
 	init:=CompactType{P:p,Height:p.ImageHeight,Width:p.ImageWidth,Src:currentWorld,Dst:nextWorld}
+
+	//Function for managing cell counts channel sending and closing.
+	control:=make(chan int)
+	traffic:=make(chan Event)
+
+	go func(control chan int,traffic chan Event){
+		stop:=0
+		for stop==0{
+			select{
+				case a:=<-control:
+					fmt.Println("Stopped.")
+					stop=a
+					close(c.events)
+				case a:=<-traffic:
+					c.events<-a
+					
+			
+			}
+
+		}
+
+
+	}(control,traffic)
+
+
+	go func(p Params,world [][]byte,control chan int){
+		for {
+			time.Sleep(2*time.Second)
+			traffic<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
+			
+
+		}
+	}(p,nextWorld,control)
 	err = client.Call("CellCalc.SingleCalc", init, response)
 
 
@@ -148,7 +184,7 @@ func distributor(p Params, c distributorChannels) {
 
 	
 		// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
-	close(c.events)
+	control<-1
 
 }
 
