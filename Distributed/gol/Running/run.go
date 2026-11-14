@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"flag"
 	"fmt"
 	"net"
@@ -13,6 +14,8 @@ import (
 
 //Control of the state. This is reset once the conditional loop is exited.
 var toQuit=false
+//This monitors when the main loop ends. Then it can exit the program.
+var loopEnd=false
 
 
 
@@ -106,6 +109,19 @@ func (l *CellCalc) GameQuit(a int, b *int) (err error){
 
 }
 
+func (l *CellCalc) SystemQuit(a int, b *int) (err error){
+    toQuit = true
+	hasPaused=false
+    *b = 1
+	for loopEnd==false{
+		time.Sleep(10*time.Millisecond)
+	}
+	os.Exit(0)
+
+    return
+
+}
+
 
 var hasPaused=false
 func (l *CellCalc) GamePause(a bool, b *PauseState) (err error){
@@ -186,6 +202,8 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 		time.Sleep(100*time.Millisecond)
 
 	}
+
+	loopEnd=true
 
 
 	return

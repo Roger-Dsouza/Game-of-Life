@@ -195,13 +195,13 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				fmt.Println("Before",pauser)
 				client.Call("CellCalc.GamePause",true,pauser)
 				roughTurn=pauser.Turn
-				fmt.Println("After",pauser)				
+								
 
 				if (pauser.State==false){
-					fmt.Println("Executing.")
+					fmt.Println("Continuing....")
 					c.events <- StateChange{roughTurn, Executing}
 				}else{
-					fmt.Println("Paused.")
+					fmt.Println("Current turn:",roughTurn)
 					c.events<-StateChange{roughTurn,Paused}
 				}
 
@@ -216,6 +216,10 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				
 				fmt.Println("Quit pressed.")
 				err=client.Call("CellCalc.GameQuit",1,orchestrate)
+
+			case 'k','K':
+				fmt.Println("Stopping Distributed Machine.")
+				err=client.Call("CellCalc.SystemQuit",1,orchestrate)
 				
 					
 
