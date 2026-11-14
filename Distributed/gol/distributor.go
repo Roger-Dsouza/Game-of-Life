@@ -1,22 +1,21 @@
 package gol
 
 import (
-	"fmt"
-	"sync"
-	"net/rpc"
 	"flag"
+	"fmt"
+	"net/rpc"
+	"sync"
 	"time"
+
+	"uk.ac.bris.cs/gameoflife/util"
 )
 
-import "uk.ac.bris.cs/gameoflife/util"
+var worker = flag.String("Worker", "localhost:8030", "IP:Connect to worker.")
+//Generic int pointer that is a blank response (could be used for debugging).
+var orchestrate *int
 
 
-
-var worker=flag.String("Worker","localhost:8030","IP:Connect to worker.")
-var ping=flag.String("Board updater","localhost:8030","IP:Gets board updates.")
-
-
-//Creates the distributor channel struct.
+// Creates the distributor channel struct.
 type distributorChannels struct {
 	events     chan<- Event
 	ioCommand  chan<- ioCommand
@@ -25,171 +24,222 @@ type distributorChannels struct {
 	ioOutput   chan<- uint8
 	ioInput    <-chan uint8
 }
-// New type for carrying useful references for worker
-type rowTask struct {
-    startRow int
-    endRow int
-    src [][]byte
-    dst [][]byte
-    wg *sync.WaitGroup
-}
 
 
-//Stubs and Structs
-//For single-threaded implementations.
+// Stubs and Structs
+// For single-threaded implementations.
 type CompactType struct {
-	P Params
+	            //Shows the turn of the machine.
+	P      Params
 	Height int
-	Width int
-	Src [][]byte
-    Dst [][]byte
-
+	Width  int
+	Src    [][]byte
+	Dst    [][]byte
 }
+
+// Reply type for the AliveCount RPC.
+type AliveRes struct {
+	Turn  int
+	Count int
+}
+
+//This collects the state of the board at a particular point.
+type BoardState struct {
+	Turn int
+	Board [][]byte
+}
+
+//State Coordinator.
+var loop sync.WaitGroup
+var letterbox chan(int)     //This is to communicate with all running instances.
+
+//This is the quit global variable, blocks normal quit procedure from happening.
 
 // distributor divides the work between workers and interacts with other goroutines.
-func distributor(p Params, c distributorChannels) {
+func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	flag.Parse()
 	//Creates two worlds for double buffering and calls them current and next world respectively.
-    worldA := make([][]byte, p.ImageHeight)
+	worldA := make([][]byte, p.ImageHeight)
 	worldB := make([][]byte, p.ImageHeight)
 
+	
 
+	for i := range worldA {
+		worldA[i] = make([]byte, p.ImageWidth)
+	}
+	for i := range worldB {
+		worldB[i] = make([]byte, p.ImageWidth)
+	}
 
+	currentWorld := worldA
+	nextWorld := worldB
 
-
-	fmt.Println("Before turns.")
-
-
-    
-    for i:= range worldA {
-        worldA[i] = make([]byte,p.ImageWidth)
-    }
-    for i:= range worldB {
-        worldB[i] = make([]byte,p.ImageWidth)
-    }
-
-    currentWorld := worldA
-    nextWorld := worldB
-
-    //Initialising.
+	//Initialising.
 	turn := 0
 
-	c.ioCommand<-ioInput
+	c.ioCommand <- ioInput
 
-
-	
-	
 	//Figured out how to read a file and this puts it into the current world.
-	c.ioFilename<-fmt.Sprintf("%vx%v",p.ImageHeight,p.ImageWidth)
-
-	for i:=0;i<p.ImageHeight;i++{
-		for j:=0;j<p.ImageWidth;j++{
-			select{
-			case a:=<-c.ioInput:
-				if (a==255){
-					c.events<-CellFlipped{CompletedTurns:0,Cell:util.Cell{X:j,Y:i}}
+	c.ioFilename <- fmt.Sprintf("%vx%v", p.ImageHeight, p.ImageWidth)
+    
+	for i := 0; i < p.ImageHeight; i++ {
+		for j := 0; j < p.ImageWidth; j++ {
+			select {
+			case a := <-c.ioInput:
+				if a == 255 {
+					c.events <- CellFlipped{CompletedTurns: 0, Cell: util.Cell{X: j, Y: i}}
 				}
 
-				currentWorld[i][j]=a
+				currentWorld[i][j] = a
 			}
 		}
 	}
 
 	c.events <- StateChange{turn, Executing}
-    //Infra needed for rowTask.
 
-
-    //Helper function to save images.
+	//Helper function to save images.
 	saveImage := func(currentTurn int) {
-		hold:=currentWorld
+		hold := currentWorld
 
-	    c.ioCommand <- ioOutput
-	    c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)
-        for r := 0; r < p.ImageHeight; r++ {
-            for col := 0; col < p.ImageWidth; col++ {
-                c.ioOutput <- hold[r][col]
-            }
-        }
+		c.ioCommand <- ioOutput
+		c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)
+		for r := 0; r < p.ImageHeight; r++ {
+			for col := 0; col < p.ImageWidth; col++ {
+				c.ioOutput <- hold[r][col]
+			}
+		}
 		c.ioCommand <- ioCheckIdle
 		<-c.ioIdle
-        c.events <- ImageOutputComplete{CompletedTurns: currentTurn,Filename: fmt.Sprintf("%vx%vx%v",p.ImageWidth,p.ImageHeight,currentTurn)}
-    }
+		c.events <- ImageOutputComplete{CompletedTurns: currentTurn, Filename: fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)}
+	}
 
-	i:=0	
-	client,err:=rpc.Dial("tcp",*worker)
+	//Modifies the provided saveImage function towards saving the board response into the IO.
+	
+	savePacketImage := func(b BoardState) {
+		c.ioCommand <- ioOutput
+		c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, b.Turn)
+		for r := 0; r < p.ImageHeight; r++ {
+			for col := 0; col < p.ImageWidth; col++ {
+				c.ioOutput <- b.Board[r][col]
+			}
+		}
+		c.ioCommand <- ioCheckIdle
+		<-c.ioIdle
+		c.events <- ImageOutputComplete{CompletedTurns: b.Turn, Filename: fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, b.Turn)}
+	}
+    
 
-		
 
-	if (err!=nil){
+
+
+	
+
+	client, err := rpc.Dial("tcp", *worker)
+
+	if err != nil {
 		panic(err)
 	}
 	defer client.Close()
 
-	response:=new(CompactType)
-	init:=CompactType{P:p,Height:p.ImageHeight,Width:p.ImageWidth,Src:currentWorld,Dst:nextWorld}
+	response := new(CompactType)
+	shuttle:=new(BoardState)
+	init := CompactType{P: p, Height: p.ImageHeight, Width: p.ImageWidth, Src: currentWorld, Dst: nextWorld}
 
-	//Function for managing cell counts channel sending and closing.
-	control:=make(chan int)
-	traffic:=make(chan Event)
-
-	go func(control chan int,traffic chan Event){
-		stop:=0
-		for stop==0{
-			select{
-				case a:=<-control:
-					fmt.Println("Stopped.")
-					stop=a
-					close(c.events)
-				case a:=<-traffic:
-					c.events<-a
-					
-			
-			}
-
-		}
-
-
-	}(control,traffic)
-
-
-	go func(p Params,world [][]byte,control chan int){
+	// Ticker: every 2 seconds ask the engine for its alive count and report it.
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
 		for {
-			time.Sleep(2*time.Second)
-			traffic<-AliveCellsCount{CompletedTurns:i,CellsCount:aliveCellCount(p,currentWorld)}
-			
-
+			select {
+			case <-ticker.C:
+				var ar AliveRes
+				e := client.Call("CellCalc.AliveCount", 0, &ar)
+				if e != nil {
+					fmt.Println("AliveCount error:", e)
+				} else {
+					c.events <- AliveCellsCount{CompletedTurns: ar.Turn, CellsCount: ar.Count}
+				}
+			case <-done:
+				return
+			}
 		}
-	}(p,nextWorld,control)
-	err = client.Call("CellCalc.SingleCalc", init, response)
+	}()
 
+	//There will be a bunch of functions running at the same time in the distributor, mutliple 'jobs sent
 
-	currentWorld=response.Src
-	nextWorld=response.Dst
-	i++
 	
+    
+	go func(){
+	hasQuit:=false
+	for hasQuit==false{
+		
+		key:=<-keyPresses
+		switch key{
+			case 'p','P':
+				fmt.Println("Pause pressed.")
+
+
+					
+			case 's','S':
+					err=client.Call("CellCalc.S",1,shuttle)
+					savePacketImage(*shuttle)
+
+			case 'q','Q':
+				fmt.Println("Quit pressed.")
+					
+
+				
+		}
+		
+
+
+	}
+	}()
+	
+
+	//This function just lets the turns be independent from keyPresses.
+    //This is the function which calls the client for the game logic state.
+	gameLogic:=func(){
+			err = client.Call("CellCalc.SingleCalc", init, response)
+			if err != nil {
+				panic(err)
+			}
+			loop.Done()
+	}
+
+	//This lets the gameLogic run in a seperate window.
+	
+	loop.Add(1)
+	go gameLogic()
+	loop.Wait()
+	
+	close(done)
+	<-stopped
+
+
+	currentWorld = response.Src
+	nextWorld = response.Dst
+
 
 
 	//Output saving.
 	saveImage(p.Turns)
-		// TODO: Report the final state using FinalTurnCompleteEvent.
-	c.events<-FinalTurnComplete{CompletedTurns:p.Turns,Alive:calculateAliveCells(p,currentWorld)}
-	fmt.Println("\nOutput state of the progam.")
+	// TODO: Report the final state using FinalTurnCompleteEvent.
+	c.events <- FinalTurnComplete{CompletedTurns: p.Turns, Alive: calculateAliveCells(p, currentWorld)}
 
-		// Make sure that the Io has finished any output before exiting.
+	// Make sure that the Io has finished any output before exiting.
 
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
 	c.events <- StateChange{turn, Quitting}
-    
+
+	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
+	close(c.events)
 
 	
-		// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
-	control<-1
+
 
 }
-
-
-
-
-	
-

@@ -1,129 +1,196 @@
 package main
 
-
 import (
-	"uk.ac.bris.cs/gameoflife/util"
-	"net"
-	"net/rpc"
 	"flag"
 	"fmt"
+	"net"
+	"net/rpc"
+	"sync"
+	"uk.ac.bris.cs/gameoflife/util"
 
 )
 
+//Control of the state. This is reset once the conditional loop is exited.
+var toQuit=false
+
+
 type CompactType struct {
-	P Params
+                         // This will notify about the turn at a point.
+	P      Params
 	Height int
-	Width int
-	Src [][]byte
-    Dst [][]byte
+	Width  int
+	Src    [][]byte
+	Dst    [][]byte
 }
 
 type Params struct {
-    Turns       int
-    Threads     int
-    ImageWidth  int
-    ImageHeight int
+	Turns       int
+	Threads     int
+	ImageWidth  int
+	ImageHeight int
 }
 
-//Flag 0 for width, 1 for height.
-func isBound(lo int, hi int, val int,maxVal int) int {
-	if (val >= lo && val <=hi){
+// Reply type for the AliveCount RPC.
+type AliveRes struct {
+	Turn  int
+	Count int
+}
+
+type BoardState struct {
+	Turn int
+	Board [][]byte
+}
+
+// Flag 0 for width, 1 for height.
+func isBound(lo int, hi int, val int, maxVal int) int {
+	if val >= lo && val <= hi {
 		return val
-	} else if (val<lo) {
-		return (maxVal-1)
-		
-	}else{
-		return maxVal-val
+	} else if val < lo {
+		return (maxVal - 1)
+
+	} else {
+		return maxVal - val
 	}
 
 }
 
-//Struct for the Game of Life Method.
-type CellCalc struct {}
+// Struct for the Game of Life Method.
+type CellCalc struct {
+	mu    sync.Mutex
+	world [][]byte
+	turn  int
+	p     Params
+}
 
-func checkCell(world [][]byte,h int,w int) int{
-	if (h!=-1 && w!=-1){
-		if (world[h][w]==255){
+func checkCell(world [][]byte, h int, w int) int {
+	if h != -1 && w != -1 {
+		if world[h][w] == 255 {
 
-			return 1;
-		}else{
-			return 0;
+			return 1
+		} else {
+			return 0
 		}
-	}else{
+	} else {
 		return 0
 	}
 
+}
 
+//These global variables store the turn and the current state of the board.
+var turn int=0
+var board [][]byte
+
+//Returns with the turn and the state at that moment.
+func (l *CellCalc) S(c int,r *BoardState) (err error){
+	fmt.Println(board)
+	fmt.Println(turn)
+	r.Turn=turn
+	r.Board=board
+
+	return
 
 }
-//Function to match client.Call.
-func (l *CellCalc) SingleCalc(c CompactType,r *CompactType) (err error){
-	if (c.P.Turns==0){
-		r.Src=c.Src
-		r.P=c.P
-		r.Dst=c.Dst
-	}else{
-		for i:=0;i<c.P.Turns;i++{
-			CalculateRows(c.P,c.Src,c.Dst,0,c.P.ImageHeight)
-			tmp:=c.Src
-			c.Src=c.Dst
-			c.Dst=tmp
-		}
-		r.Src=c.Src
-		r.P=c.P
-		r.Dst=c.Dst
+
+
+func (l *CellCalc) GameQuit(a int, b *int) (err error){
+	fmt.Println("Quit Pressed.")
+	toQuit=true
+	*b=1
+
+	return
+}
+
+
+
+
+
+// Function to match client.Call.
+func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
+	board=c.Src
+	l.mu.Lock()
+	l.world, l.turn, l.p = c.Src, 0, c.P
+	l.mu.Unlock()
+	
+    i:=0
+	for toQuit==false && i<c.P.Turns{
+
+			board=c.Src
+			turn=i
+
+			l.mu.Lock()
+			CalculateRows(c.P, c.Src, c.Dst, 0, c.P.ImageHeight)
+			c.Src, c.Dst = c.Dst, c.Src
+			l.world, l.turn = c.Src, i+1
+			l.mu.Unlock()
+
+			i++
+		
 	}
 
+	r.Src = c.Src
+	r.P = c.P
+	r.Dst = c.Dst
 
-	return 
+
+
+	fmt.Println("Returning from game logic.")
+
+
+	return
 }
 
-//Diagnostic function.
+// Reports the current turn and alive cell count.
+func (l *CellCalc) AliveCount(req int, res *AliveRes) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	res.Turn = l.turn
+	if l.world != nil {
+		res.Count = aliveCellCount(l.p, l.world)
+	}
+	return nil
+}
 
+// Diagnostic function.
+func (l *CellCalc) Ping(c CompactType, r *CompactType) (err error) {
+	fmt.Println("Ping pong.")
+	return
+}
 
-
-func CalculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int)(err error) {
+func CalculateRows(p Params, world [][]byte, dst [][]byte, startRow int, endRow int) (err error) {
 	var width int = p.ImageWidth
 	var height int = p.ImageHeight
 
+	for h := startRow; h < endRow; h++ {
+		for w := 0; w < width; w++ {
+			var activeCells int = 0
+			var val byte = world[h][w]
 
-    for h := startRow; h < endRow; h++ {
-        for w:= 0; w < width; w++ {
-            var activeCells int = 0
-            var val byte = world[h][w]
+			var low int = isBound(0, width-1, w-1, width)
+			var loh int = isBound(0, height-1, h-1, height)
 
+			var hiw int = isBound(0, width-1, w+1, width)
+			var hih int = isBound(0, height-1, h+1, height)
 
-			var low int = isBound(0, width-1, w-1,width)
-			var loh int = isBound(0, height-1, h-1,height)
-
-			var hiw int = isBound(0, width-1, w+1,width)
-			var hih int = isBound(0, height-1, h+1,height)
-
-
-
-            activeCells+=(checkCell(world,loh,low)+checkCell(world,hih,hiw))
-			activeCells+=(checkCell(world,loh,w)+checkCell(world,hih,w))
-			activeCells+=(checkCell(world,h,low)+checkCell(world,h,hiw))
-			activeCells+=(checkCell(world,loh,hiw)+checkCell(world,hih,low))
-			
-			
+			activeCells += (checkCell(world, loh, low) + checkCell(world, hih, hiw))
+			activeCells += (checkCell(world, loh, w) + checkCell(world, hih, w))
+			activeCells += (checkCell(world, h, low) + checkCell(world, h, hiw))
+			activeCells += (checkCell(world, loh, hiw) + checkCell(world, hih, low))
 
 			switch val {
-            case 0:
+			case 0:
 				if activeCells == 3 {
 					dst[h][w] = 255
-					
-				}else{
+
+				} else {
 					dst[h][w] = 0
 				}
 
 			case 255:
 				if activeCells < 2 || activeCells > 3 {
 					dst[h][w] = 0
-					
 
-				}else{
-					dst[h][w]=255
+				} else {
+					dst[h][w] = 255
 
 				}
 			}
@@ -131,11 +198,6 @@ func CalculateRows(p Params, world [][]byte,dst [][]byte,startRow int,endRow int
 		}
 
 	}
-	return
-}
-
-func (l *CellCalc) Ping(c CompactType,r *CompactType) (err error){
-	fmt.Println("Ping pong.")
 	return
 }
 
@@ -157,16 +219,15 @@ func calculateAliveCells(p Params, world [][]byte) []util.Cell {
 	return active
 }
 
-
 func aliveCellCount(p Params, world [][]byte) int {
-	total:=0
+	total := 0
 	var width int = p.ImageWidth
 	var height int = p.ImageHeight
 
 	for h := 0; h < height; h++ {
 		for w := 0; w < width; w++ {
 			if world[h][w] == 255 {
-				total++;
+				total++
 
 			}
 
@@ -176,14 +237,13 @@ func aliveCellCount(p Params, world [][]byte) int {
 	return total
 }
 
-
-func main(){
-	start:=flag.String("port","localhost:8030","Listening port.")
+func main() {
+	start := flag.String("port", "localhost:8030", "Listening port.")
 	flag.Parse()
 	rpc.Register(&CellCalc{})
-	listener,err:=net.Listen("tcp",*start)
+	listener, err := net.Listen("tcp", *start)
 
-	if (err!=nil){
+	if err != nil {
 		panic(err)
 	}
 
@@ -191,6 +251,3 @@ func main(){
 	rpc.Accept(listener)
 
 }
-
-
-
