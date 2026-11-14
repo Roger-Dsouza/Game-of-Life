@@ -99,11 +99,11 @@ func (l *CellCalc) S(c int,r *BoardState) (err error){
 
 
 func (l *CellCalc) GameQuit(a int, b *int) (err error){
-	fmt.Println("Quit status changed to true.")
-	toQuit=true
-	*b=1
+    toQuit = true
+	hasPaused=false
+    *b = 1
+    return
 
-	return
 }
 
 
@@ -111,9 +111,10 @@ var hasPaused=false
 func (l *CellCalc) GamePause(a bool, b *PauseState) (err error){
 	fmt.Printf("Before: %v\n", hasPaused)
 	hasPaused = !hasPaused
-	fmt.Printf("After: %v\n", hasPaused)
 	b.State=hasPaused
 	b.Turn=turn
+	fmt.Printf("After: %v\n", hasPaused)
+
 
 	return
 }
@@ -131,6 +132,7 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 	
     i:=0
 	for toQuit==false && i<c.P.Turns{
+		   
 			board=c.Src
 			turn=i
 
@@ -148,7 +150,7 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 
 			i++
 
-			for (hasPaused){
+			for (hasPaused && toQuit==false){
 				time.Sleep(100*time.Millisecond)
 			}
 		

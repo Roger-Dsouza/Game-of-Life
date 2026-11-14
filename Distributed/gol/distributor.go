@@ -183,6 +183,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	
     
 	go func(){
+	roughTurn:=0
 	
 	hasQuit:=false
 	for hasQuit==false{
@@ -193,14 +194,15 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				pauser:=new(PauseState)
 				fmt.Println("Before",pauser)
 				client.Call("CellCalc.GamePause",true,pauser)
+				roughTurn=pauser.Turn
 				fmt.Println("After",pauser)				
 
 				if (pauser.State==false){
 					fmt.Println("Executing.")
-					c.events <- StateChange{pauser.Turn, Executing}
+					c.events <- StateChange{roughTurn, Executing}
 				}else{
 					fmt.Println("Paused.")
-					c.events<-StateChange{pauser.Turn,Paused}
+					c.events<-StateChange{roughTurn,Paused}
 				}
 
 
@@ -211,8 +213,10 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 					savePacketImage(*shuttle)
 
 			case 'q','Q':
+				
 				fmt.Println("Quit pressed.")
 				err=client.Call("CellCalc.GameQuit",1,orchestrate)
+				
 					
 
 				
@@ -253,15 +257,15 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 
 
 	//Output saving.
-	saveImage(p.Turns)
+	saveImage(response.Turn)
 	// TODO: Report the final state using FinalTurnCompleteEvent.
-	c.events <- FinalTurnComplete{CompletedTurns: p.Turns, Alive: calculateAliveCells(p, currentWorld)}
+	c.events <- FinalTurnComplete{CompletedTurns: response.Turn, Alive: calculateAliveCells(p, currentWorld)}
 
 	// Make sure that the Io has finished any output before exiting.
 
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
-	c.events <- StateChange{p.Turns, Quitting}
+	c.events <- StateChange{response.Turn, Quitting}
 
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)
