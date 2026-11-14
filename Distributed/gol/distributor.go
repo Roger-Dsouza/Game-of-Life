@@ -12,7 +12,11 @@ import (
 
 var worker = flag.String("Worker", "localhost:8030", "IP:Connect to worker.")
 //Generic int pointer that is a blank response (could be used for debugging).
-var orchestrate *int
+var intLog=0
+var orchestrate *int=&intLog
+
+
+
 
 
 // Creates the distributor channel struct.
@@ -30,6 +34,7 @@ type distributorChannels struct {
 // For single-threaded implementations.
 type CompactType struct {
 	            //Shows the turn of the machine.
+	Turn int
 	P      Params
 	Height int
 	Width  int
@@ -47,6 +52,11 @@ type AliveRes struct {
 type BoardState struct {
 	Turn int
 	Board [][]byte
+}
+
+type PauseState struct {
+	State bool
+	Turn int
 }
 
 //State Coordinator.
@@ -143,7 +153,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 
 	response := new(CompactType)
 	shuttle:=new(BoardState)
-	init := CompactType{P: p, Height: p.ImageHeight, Width: p.ImageWidth, Src: currentWorld, Dst: nextWorld}
+	init := CompactType{Turn:0,P: p, Height: p.ImageHeight, Width: p.ImageWidth, Src: currentWorld, Dst: nextWorld}
 
 	// Ticker: every 2 seconds ask the engine for its alive count and report it.
 	done := make(chan struct{})
@@ -173,22 +183,36 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	
     
 	go func(){
+	
 	hasQuit:=false
 	for hasQuit==false{
 		
 		key:=<-keyPresses
 		switch key{
 			case 'p','P':
-				fmt.Println("Pause pressed.")
+				pauser:=new(PauseState)
+				fmt.Println("Before",pauser)
+				client.Call("CellCalc.GamePause",true,pauser)
+				fmt.Println("After",pauser)				
+
+				if (pauser.State==false){
+					fmt.Println("Executing.")
+					c.events <- StateChange{pauser.Turn, Executing}
+				}else{
+					fmt.Println("Paused.")
+					c.events<-StateChange{pauser.Turn,Paused}
+				}
 
 
 					
 			case 's','S':
+					fmt.Println("Save pressed.")
 					err=client.Call("CellCalc.S",1,shuttle)
 					savePacketImage(*shuttle)
 
 			case 'q','Q':
 				fmt.Println("Quit pressed.")
+				err=client.Call("CellCalc.GameQuit",1,orchestrate)
 					
 
 				
@@ -208,6 +232,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				panic(err)
 			}
 			loop.Done()
+			
 	}
 
 	//This lets the gameLogic run in a seperate window.
@@ -215,6 +240,8 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	loop.Add(1)
 	go gameLogic()
 	loop.Wait()
+
+
 	
 	close(done)
 	<-stopped
@@ -234,7 +261,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
-	c.events <- StateChange{turn, Quitting}
+	c.events <- StateChange{p.Turns, Quitting}
 
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)

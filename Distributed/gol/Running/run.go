@@ -7,6 +7,7 @@ import (
 	"net/rpc"
 	"sync"
 	"uk.ac.bris.cs/gameoflife/util"
+	"time"
 
 )
 
@@ -14,8 +15,10 @@ import (
 var toQuit=false
 
 
+
 type CompactType struct {
                          // This will notify about the turn at a point.
+	Turn int
 	P      Params
 	Height int
 	Width  int
@@ -28,6 +31,11 @@ type Params struct {
 	Threads     int
 	ImageWidth  int
 	ImageHeight int
+}
+
+type PauseState struct {
+	State bool
+	Turn int
 }
 
 // Reply type for the AliveCount RPC.
@@ -82,8 +90,6 @@ var board [][]byte
 
 //Returns with the turn and the state at that moment.
 func (l *CellCalc) S(c int,r *BoardState) (err error){
-	fmt.Println(board)
-	fmt.Println(turn)
 	r.Turn=turn
 	r.Board=board
 
@@ -93,7 +99,7 @@ func (l *CellCalc) S(c int,r *BoardState) (err error){
 
 
 func (l *CellCalc) GameQuit(a int, b *int) (err error){
-	fmt.Println("Quit Pressed.")
+	fmt.Println("Quit status changed to true.")
 	toQuit=true
 	*b=1
 
@@ -101,11 +107,23 @@ func (l *CellCalc) GameQuit(a int, b *int) (err error){
 }
 
 
+var hasPaused=false
+func (l *CellCalc) GamePause(a bool, b *PauseState) (err error){
+	fmt.Printf("Before: %v\n", hasPaused)
+	hasPaused = !hasPaused
+	fmt.Printf("After: %v\n", hasPaused)
+	b.State=hasPaused
+	b.Turn=turn
+
+	return
+}
+
 
 
 
 // Function to match client.Call.
 func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
+	fmt.Println("Quit or not:",toQuit)
 	board=c.Src
 	l.mu.Lock()
 	l.world, l.turn, l.p = c.Src, 0, c.P
@@ -113,46 +131,72 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 	
     i:=0
 	for toQuit==false && i<c.P.Turns{
-
 			board=c.Src
 			turn=i
 
 			l.mu.Lock()
 			CalculateRows(c.P, c.Src, c.Dst, 0, c.P.ImageHeight)
+
+			
 			c.Src, c.Dst = c.Dst, c.Src
+			
+
+			
+			
 			l.world, l.turn = c.Src, i+1
 			l.mu.Unlock()
 
 			i++
+
+			for (hasPaused){
+				time.Sleep(100*time.Millisecond)
+			}
 		
 	}
+	//Ignores the current turn.
 
+
+   turn=i
+   board=c.Src
+   r.Turn=turn
+
+
+
+    
 	r.Src = c.Src
 	r.P = c.P
 	r.Dst = c.Dst
 
 
+	if (toQuit==true){
+		fmt.Println("Program quit because client said so.")
+		fmt.Println("Parameters:",r.P)
 
-	fmt.Println("Returning from game logic.")
+	}else{
+		fmt.Println("Returning from game logic.")
+
+	}
+
+	toQuit=false
+
+	for (hasPaused && toQuit==false){
+		fmt.Println(hasPaused)
+		time.Sleep(100*time.Millisecond)
+
+	}
 
 
 	return
 }
 
 // Reports the current turn and alive cell count.
-func (l *CellCalc) AliveCount(req int, res *AliveRes) error {
+func (l *CellCalc) AliveCount(req int, res *AliveRes) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	res.Turn = l.turn
 	if l.world != nil {
 		res.Count = aliveCellCount(l.p, l.world)
 	}
-	return nil
-}
-
-// Diagnostic function.
-func (l *CellCalc) Ping(c CompactType, r *CompactType) (err error) {
-	fmt.Println("Ping pong.")
 	return
 }
 
