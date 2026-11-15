@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/rpc"
+	"strings"
 	"sync"
 	"uk.ac.bris.cs/gameoflife/util"
 	"time"
@@ -50,6 +51,52 @@ type AliveRes struct {
 type BoardState struct {
 	Turn int
 	Board [][]byte
+}
+
+type StepReq struct {
+    Width int
+    Rows [][]byte
+}
+
+type StepRes struct {
+    Rows [][]byte
+}
+var workers []*rpc.Client
+
+func stepWorkers(p Params, src, dst [][]byte) error {
+    H, W := p.ImageHeight, p.ImageWidth
+    n := len(workers)
+    if n > H {
+        n = H
+    }
+    errs:= make([]error, n)
+    var wg sync.WaitGroup
+    for i := 0; i < n; i++ {
+        start, end := i*H/n, (i+1)*H/n
+        rows := make([][]byte, 0 , end-start + 2)
+        rows = append(rows, src[(start-1+H)%H])
+        rows = append(rows,src[start:end]...)
+        rows = append(rows, src[end%H])
+        wg.Add(1)
+        go func(i, start int, rows [][]byte) {
+            defer wg.Done()
+            var res StepRes
+            if e := workers[i].Call("Worker.Step", StepReq{Width: W, Rows: rows}, &res); e != nil {
+                errs[i] = e
+                return
+            }
+            for k, row := range res.Rows {
+                copy(dst[start+k], row)
+            }
+        }(i, start, rows)
+    }
+    wg.Wait()
+    for _, e := range errs {
+        if e != nil {
+            return e
+        }
+    }
+    return nil
 }
 
 // Flag 0 for width, 1 for height.
@@ -116,6 +163,11 @@ func (l *CellCalc) SystemQuit(a int, b *int) (err error){
 	for loopEnd==false{
 		time.Sleep(10*time.Millisecond)
 	}
+	time.Sleep(500 * time.Millisecond)
+	for _, w := range workers {
+		var x int
+		w.Call("Worker.Shutdown", 0, &x)
+	}
 	os.Exit(0)
 
     return
@@ -153,7 +205,10 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 			turn=i
 
 			l.mu.Lock()
-			CalculateRows(c.P, c.Src, c.Dst, 0, c.P.ImageHeight)
+			if e := stepWorkers(c.P, c.Src, c.Dst); e != nil {
+            	l.mu.Unlock()
+            	return e
+            }
 
 			
 			c.Src, c.Dst = c.Dst, c.Src
@@ -303,15 +358,23 @@ func aliveCellCount(p Params, world [][]byte) int {
 
 func main() {
 	start := flag.String("port", "localhost:8030", "Listening port.")
+	ws := flag.String("workers", "localhost:8031", "Comma-separated worker addresses.")
 	flag.Parse()
+
+	for _, addr := range strings.Split(*ws, ",") {
+		cl, err := rpc.Dial("tcp", strings.TrimSpace(addr))
+		if err != nil {
+			panic(err)
+		}
+		workers = append(workers, cl)
+	}
+	fmt.Println("Connected to", len(workers), "workers")
+
 	rpc.Register(&CellCalc{})
 	listener, err := net.Listen("tcp", *start)
-
 	if err != nil {
 		panic(err)
 	}
-
 	defer listener.Close()
 	rpc.Accept(listener)
-
 }
