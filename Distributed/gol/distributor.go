@@ -67,6 +67,10 @@ var letterbox chan(int)     //This is to communicate with all running instances.
 
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
+	//Mutex to hold race conditions.
+	
+
+
 	flag.Parse()
 	//Creates two worlds for double buffering and calls them current and next world respectively.
 	worldA := make([][]byte, p.ImageHeight)
