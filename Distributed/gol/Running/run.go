@@ -18,6 +18,10 @@ var toQuit=false
 //This monitors when the main loop ends. Then it can exit the program.
 var loopEnd=false
 
+var control sync.Mutex
+
+
+
 
 
 type CompactType struct {
@@ -83,7 +87,7 @@ func stepWorkers(p Params, src, dst [][]byte) error {
             var res StepRes
             if e := workers[i].Call("Worker.Step", StepReq{Width: W, Rows: rows}, &res); e != nil {
                 errs[i] = e
-                return
+                return 
             }
             for k, row := range res.Rows {
                 copy(dst[start+k], row)
@@ -120,6 +124,15 @@ type CellCalc struct {
 	p     Params
 }
 
+
+func emptyBoard(p Params) [][]byte {
+	board := make([][]byte, p.ImageHeight)
+	for y := range board {
+		board[y] = make([]byte, p.ImageWidth)
+	}
+	return board
+}
+
 func checkCell(world [][]byte, h int, w int) int {
 	if h != -1 && w != -1 {
 		if world[h][w] == 255 {
@@ -139,19 +152,28 @@ var turn int=0
 var board [][]byte
 
 //Returns with the turn and the state at that moment.
-func (l *CellCalc) S(c int,r *BoardState) (err error){
-	r.Turn=turn
-	r.Board=board
+func (l *CellCalc) S(_ int, r *BoardState) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-	return
-
+	r.Turn = l.turn
+	r.Board = make([][]byte, len(l.world))
+	for y := range l.world {
+		r.Board[y] = append([]byte(nil), l.world[y]...)
+	}
+	return nil
 }
 
 
 func (l *CellCalc) GameQuit(a int, b *int) (err error){
+	control.Lock()
+
     toQuit = true
 	hasPaused=false
+
+	control.Unlock()
     *b = 1
+	
     return
 
 }
@@ -200,31 +222,38 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 	
     i:=0
 	for toQuit==false && i<c.P.Turns{
-		   
+			control.Lock()
+
 			board=c.Src
 			turn=i
 
-			l.mu.Lock()
+
 			if e := stepWorkers(c.P, c.Src, c.Dst); e != nil {
-            	l.mu.Unlock()
+            	control.Unlock()
             	return e
             }
 
-			for (hasPaused && toQuit==false){
-				time.Sleep(100*time.Millisecond)
+			if toQuit {
+				l.mu.Unlock()
+				break
 			}
 
-
-			
 			c.Src, c.Dst = c.Dst, c.Src
+			i++
 			
-
-			
-			
-			l.world, l.turn = c.Src, i+1
+			l.mu.Lock()
+			l.world, l.turn = c.Src, i
 			l.mu.Unlock()
 
-			i++
+
+			control.Unlock()
+
+
+			for hasPaused && !toQuit {
+				time.Sleep(10 * time.Millisecond)
+			}
+
+			
 
 
 
@@ -232,7 +261,7 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 
 		
 	}
-	//Ignores the current turn.
+	//Ignores the current turn if it quit.
 
 
    turn=i
@@ -240,9 +269,14 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
    r.Turn=turn
 
 
+	l.mu.Lock()
+	r.Turn = l.turn
+	r.Src = make([][]byte, len(l.world))
+	for y := range l.world {
+		r.Src[y] = append([]byte(nil), l.world[y]...)
+	}
+	l.mu.Unlock()
 
-    
-	r.Src = c.Src
 	r.P = c.P
 	r.Dst = c.Dst
 
@@ -281,50 +315,7 @@ func (l *CellCalc) AliveCount(req int, res *AliveRes) (err error) {
 	return
 }
 
-func CalculateRows(p Params, world [][]byte, dst [][]byte, startRow int, endRow int) (err error) {
-	var width int = p.ImageWidth
-	var height int = p.ImageHeight
 
-	for h := startRow; h < endRow; h++ {
-		for w := 0; w < width; w++ {
-			var activeCells int = 0
-			var val byte = world[h][w]
-
-			var low int = isBound(0, width-1, w-1, width)
-			var loh int = isBound(0, height-1, h-1, height)
-
-			var hiw int = isBound(0, width-1, w+1, width)
-			var hih int = isBound(0, height-1, h+1, height)
-
-			activeCells += (checkCell(world, loh, low) + checkCell(world, hih, hiw))
-			activeCells += (checkCell(world, loh, w) + checkCell(world, hih, w))
-			activeCells += (checkCell(world, h, low) + checkCell(world, h, hiw))
-			activeCells += (checkCell(world, loh, hiw) + checkCell(world, hih, low))
-
-			switch val {
-			case 0:
-				if activeCells == 3 {
-					dst[h][w] = 255
-
-				} else {
-					dst[h][w] = 0
-				}
-
-			case 255:
-				if activeCells < 2 || activeCells > 3 {
-					dst[h][w] = 0
-
-				} else {
-					dst[h][w] = 255
-
-				}
-			}
-
-		}
-
-	}
-	return
-}
 
 func calculateAliveCells(p Params, world [][]byte) []util.Cell {
 	var active []util.Cell

@@ -135,7 +135,7 @@ func aliveCellCount(p Params, world [][]byte) int {
 
 
 func main(){
-	start:=flag.String("port","localhost:8030","Listening port.")
+	start:=flag.String("port","local:8030","Listening port.")
 	flag.Parse()
 	rpc.Register(&CellCalc{})
 	listener,err:=net.Listen("tcp",":"+*start)

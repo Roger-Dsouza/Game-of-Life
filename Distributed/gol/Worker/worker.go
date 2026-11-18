@@ -26,23 +26,36 @@ func (w *Worker) Step(req StepReq, res *StepRes) error {
 	out := make([][]byte, h)
 	for y := 1; y <= h; y++ {
 		row := make([]byte, W)
+        top := req.Rows[y-1]
+		middle := req.Rows[y]
+		bottom := req.Rows[y+1]
+
 		for x := 0; x < W; x++ {
-			n := 0
-			for dy := -1; dy <= 1; dy++ {
-				for dx := -1; dx <= 1; dx++ {
-					if dy == 0 && dx == 0 {
-						continue
-					}
-					if req.Rows[y+dy][(x+dx+W)%W] == 255 {
-						n++
-					}
-				}
+			left, right := x-1, x+1
+			if left < 0 {
+				left = W - 1
 			}
-			alive := req.Rows[y][x] == 255
-			if (alive && (n == 2 || n == 3)) || (!alive && n == 3) {
-				row[x] = 255
+			if right == W {
+				right = 0
 			}
+
+		n := 0
+		for _, cell := range []byte{
+			top[left], top[x], top[right],
+			middle[left], middle[right],
+			bottom[left], bottom[x], bottom[right],
+		} {
+		if cell == 255 {
+			n++
 		}
+	}
+
+	alive := middle[x] == 255
+	if (alive && (n == 2 || n == 3)) || (!alive && n == 3) {
+		row[x] = 255
+	}
+}
+
 		out[y-1] = row
 	}
 	res.Rows = out
@@ -58,7 +71,7 @@ func (w *Worker) Shutdown(a int, b *int) error {
 }
 
 func main() {
-	port := flag.String("port", ":8031", "Listening address.")
+	port := flag.String("port", "localhost:8031", "Listening address.")
 	flag.Parse()
 	rpc.Register(&Worker{})
 	ln, err := net.Listen("tcp", *port)
