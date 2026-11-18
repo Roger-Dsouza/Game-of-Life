@@ -221,6 +221,7 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 	l.mu.Unlock()
 	
     i:=0
+	
 	for toQuit==false && i<c.P.Turns{
 			control.Lock()
 
@@ -234,7 +235,7 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
             }
 
 			if toQuit {
-				l.mu.Unlock()
+				control.Unlock()
 				break
 			}
 
@@ -271,10 +272,18 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 
 	l.mu.Lock()
 	r.Turn = l.turn
-	r.Src = make([][]byte, len(l.world))
-	for y := range l.world {
-		r.Src[y] = append([]byte(nil), l.world[y]...)
+
+	if toQuit && l.turn==0{
+		r.Src=emptyBoard(c.P)
+	}else{
+		r.Src = make([][]byte, len(l.world))
+		for y := range l.world {
+			r.Src[y] = append([]byte(nil), l.world[y]...)
+		}
+
 	}
+
+
 	l.mu.Unlock()
 
 	r.P = c.P

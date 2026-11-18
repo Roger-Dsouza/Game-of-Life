@@ -10,7 +10,7 @@ import (
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
-var worker = flag.String("Worker", "13.220.202.132:8030", "IP:Connect to worker.")
+var worker = flag.String("Worker", "3.88.0.196:8030", "IP:Connect to worker.")
 //Generic int pointer that is a blank response (could be used for debugging).
 var intLog=0
 var orchestrate *int=&intLog
@@ -65,6 +65,10 @@ var loop sync.WaitGroup
 
 //This is the quit global variable, blocks normal quit procedure from happening.
 
+//This function just panics.
+
+
+
 // distributor divides the work between workers and interacts with other goroutines.
 func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	//Mutex to hold race conditions.
@@ -109,6 +113,8 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 		}
 	}
 
+	
+
 	c.events <- StateChange{turn, Executing}
 
 	//Helper function to save images.
@@ -116,6 +122,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 		hold := currentWorld
 
 		c.ioCommand <- ioOutput
+		fmt.Printf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)
 		c.ioFilename <- fmt.Sprintf("%vx%vx%v", p.ImageWidth, p.ImageHeight, currentTurn)
 		for r := 0; r < p.ImageHeight; r++ {
 			for col := 0; col < p.ImageWidth; col++ {
@@ -203,7 +210,6 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 								
 
 				if (pauser.State==false){
-					fmt.Println("Continuing....")
 					c.events <- StateChange{roughTurn, Executing}
 				}else{
 					fmt.Println("Current turn:",roughTurn)
@@ -213,18 +219,21 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 
 					
 			case 's','S':
-					fmt.Println("Save pressed.")
-					err=client.Call("CellCalc.S",1,shuttle)
+					if saveerr:=client.Call("CellCalc.S",1,shuttle);saveerr!=nil{
+						panic(saveerr)
+					}
 					savePacketImage(*shuttle)
 
 			case 'q','Q':
 				
-				fmt.Println("Quit pressed.")
-				err=client.Call("CellCalc.GameQuit",1,orchestrate)
+				if quitError:=client.Call("CellCalc.GameQuit",1,orchestrate);quitError!=nil{
+					panic(quitError)
+				}
 
 			case 'k','K':
-				fmt.Println("Stopping Distributed Machine.")
-				err=client.Call("CellCalc.SystemQuit",1,orchestrate)
+				if err3:=client.Call("CellCalc.SystemQuit",1,orchestrate);err3!=nil{
+					panic(err3)
+				}
 				
 					
 
@@ -240,9 +249,9 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 	//This function just lets the turns be independent from keyPresses.
     //This is the function which calls the client for the game logic state.
 	gameLogic:=func(){
-			err = client.Call("CellCalc.SingleCalc", init, response)
+			err1 := client.Call("CellCalc.SingleCalc", init, response)
 			if err != nil {
-				panic(err)
+				panic(err1)
 			}
 			loop.Done()
 			
