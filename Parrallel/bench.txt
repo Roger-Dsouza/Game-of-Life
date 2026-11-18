@@ -1,0 +1,2 @@
+PASS
+ok  	uk.ac.bris.cs/gameoflife/tests	0.023s

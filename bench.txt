@@ -1,0 +1,30 @@
+goos: linux
+goarch: amd64
+pkg: uk.ac.bris.cs/gameoflife/tests
+cpu: 12th Gen Intel(R) Core(TM) i7-1255U
+BenchmarkGol/1_workers-12         	       5	  94210521 ns/op
+BenchmarkGol/1_workers-12         	       5	  98158394 ns/op
+BenchmarkGol/1_workers-12         	       5	 103982689 ns/op
+BenchmarkGol/1_workers-12         	       5	 102840157 ns/op
+BenchmarkGol/1_workers-12         	       5	  98569672 ns/op
+BenchmarkGol/2_workers-12         	       5	 106322426 ns/op
+BenchmarkGol/2_workers-12         	       5	 103800574 ns/op
+BenchmarkGol/2_workers-12         	       5	 107202360 ns/op
+BenchmarkGol/2_workers-12         	       5	  71738307 ns/op
+BenchmarkGol/2_workers-12         	       5	  78910665 ns/op
+BenchmarkGol/4_workers-12         	       5	  76054691 ns/op
+BenchmarkGol/4_workers-12         	       5	  76227497 ns/op
+BenchmarkGol/4_workers-12         	       5	  84359834 ns/op
+BenchmarkGol/4_workers-12         	       5	  85115086 ns/op
+BenchmarkGol/4_workers-12         	       5	  91490949 ns/op
+BenchmarkGol/8_workers-12         	       5	  73273540 ns/op
+BenchmarkGol/8_workers-12         	       5	  88803749 ns/op
+BenchmarkGol/8_workers-12         	       5	  81142714 ns/op
+BenchmarkGol/8_workers-12         	       5	  89373560 ns/op
+BenchmarkGol/8_workers-12         	       5	  74691398 ns/op
+BenchmarkGol/16_workers-12        	       5	  69877802 ns/op
+BenchmarkGol/16_workers-12        	       5	  67621431 ns/op
+BenchmarkGol/16_workers-12        	       5	  73302373 ns/op
+BenchmarkGol/16_workers-12        	       5	  96134459 ns/op
+BenchmarkGol/16_workers-12        	       5	  70005604 ns/op
+ok  	uk.ac.bris.cs/gameoflife/tests	13.132s
