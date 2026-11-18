@@ -222,8 +222,15 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 				err=client.Call("CellCalc.GameQuit",1,orchestrate)
 
 			case 'k','K':
-				fmt.Println("Stopping Distributed Machine.")
-				err=client.Call("CellCalc.SystemQuit",1,orchestrate)
+				//Quits normally, then it quits the goroutines.
+
+				if quitError1:=client.Call("CellCalc.GameQuit",1,orchestrate);quitError1!=nil{
+					panic(quitError1)
+				}
+				
+				if err3:=client.Call("CellCalc.SystemQuit",1,orchestrate);err3!=nil{
+					panic(err3)
+				}
 				
 					
 

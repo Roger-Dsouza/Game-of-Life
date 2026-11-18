@@ -157,19 +157,28 @@ func (l *CellCalc) GameQuit(a int, b *int) (err error){
 }
 
 func (l *CellCalc) SystemQuit(a int, b *int) (err error){
+	control.Lock()
     toQuit = true
 	hasPaused=false
-    *b = 1
-	for loopEnd==false{
-		time.Sleep(10*time.Millisecond)
-	}
-	time.Sleep(500 * time.Millisecond)
-	for _, w := range workers {
-		var x int
-		w.Call("Worker.Shutdown", 0, &x)
-	}
-	os.Exit(0)
+	control.Unlock()
 
+    *b = 1
+
+	//Concurrent program which shuts down the goroutine.
+	go func(){
+		for !loopEnd{
+			time.Sleep(10*time.Millisecond)
+		}
+		time.Sleep(50*time.Millisecond)
+		for _, w := range workers {
+			var x int
+			w.Call("Worker.Shutdown", 0, &x)
+			
+		}
+		time.Sleep(500 * time.Millisecond)
+		os.Exit(0)
+
+	}()
     return
 
 }
