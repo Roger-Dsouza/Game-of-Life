@@ -210,6 +210,11 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
             	return e
             }
 
+			for (hasPaused && toQuit==false){
+				time.Sleep(100*time.Millisecond)
+			}
+
+
 			
 			c.Src, c.Dst = c.Dst, c.Src
 			
@@ -221,9 +226,10 @@ func (l *CellCalc) SingleCalc(c CompactType, r *CompactType) (err error) {
 
 			i++
 
-			for (hasPaused && toQuit==false){
-				time.Sleep(100*time.Millisecond)
-			}
+
+
+
+
 		
 	}
 	//Ignores the current turn.
@@ -357,8 +363,8 @@ func aliveCellCount(p Params, world [][]byte) int {
 }
 
 func main() {
-	start := flag.String("port", "localhost:8030", "Listening port.")
-	ws := flag.String("workers", "localhost:8031", "Comma-separated worker addresses.")
+	start := flag.String("port", ":8030", "Listening port.")
+	ws := flag.String("workers", "", "Comma-separated worker addresses.")
 	flag.Parse()
 
 	for _, addr := range strings.Split(*ws, ",") {

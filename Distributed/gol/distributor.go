@@ -10,7 +10,7 @@ import (
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
-var worker = flag.String("Worker", "localhost:8030", "IP:Connect to worker.")
+var worker = flag.String("Worker", "13.220.202.132:8030", "IP:Connect to worker.")
 //Generic int pointer that is a blank response (could be used for debugging).
 var intLog=0
 var orchestrate *int=&intLog
@@ -61,7 +61,7 @@ type PauseState struct {
 
 //State Coordinator.
 var loop sync.WaitGroup
-var letterbox chan(int)     //This is to communicate with all running instances.
+    //This is to communicate with all running instances.
 
 //This is the quit global variable, blocks normal quit procedure from happening.
 
@@ -197,6 +197,7 @@ func distributor(p Params, c distributorChannels,keyPresses <-chan rune) {
 			case 'p','P':
 				pauser:=new(PauseState)
 				fmt.Println("Before",pauser)
+				pauser.Turn=roughTurn
 				client.Call("CellCalc.GamePause",true,pauser)
 				roughTurn=pauser.Turn
 								
